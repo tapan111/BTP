@@ -106,5 +106,12 @@ class SignLanguageTransformer(VideoTransformerBase):
 # Streamlit UI
 st.title("Real-time Indian Sign Language Recognition")
 
-webrtc_streamer(key="key", video_processor_factory=SignLanguageTransformer)
+webrtc_streamer(
+    key="key",
+    video_processor_factory=SignLanguageTransformer,
+    rtc_configuration={
+        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+    }
+)
+
 
