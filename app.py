@@ -1,3 +1,10 @@
+import os
+from pyvirtualdisplay import Display
+
+# Start a virtual display before importing OpenCV and MediaPipe
+display = Display(visible=0, size=(1920, 1080))
+display.start()
+
 import streamlit as st
 from streamlit_webrtc import VideoTransformerBase, webrtc_streamer
 import tensorflow as tf
@@ -8,14 +15,32 @@ import os
 from matplotlib import pyplot as plt
 import time
 from tensorflow.keras.layers import LSTM
-from tensorflow.keras.models import load_model
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Layer, Multiply, Permute, Lambda, Activation
+from tensorflow.keras.layers import (Input, LSTM, Dense, Dropout, Bidirectional,
+                                     MultiHeadAttention, LayerNormalization, Add, GlobalAveragePooling1D, Conv1D, MaxPooling1D, Flatten)
+import tensorflow.keras.backend as K
+from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.models import Model
+from tensorflow.keras.callbacks import ReduceLROnPlateau
+# from tensorflow.keras.optimizers import AdamW
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import MultiHeadAttention
 
-# Load models
+from tensorflow.keras.models import load_model
+from tensorflow.keras.layers import MultiHeadAttention
+
+from tensorflow.keras.models import load_model
+from tensorflow.keras.layers import MultiHeadAttention
+
 model = tf.keras.models.load_model('isl_bilstmonly.h5')
 model1 = tf.keras.models.load_model('isl_cnnlstm.h5')
 transformer_model = tf.keras.models.load_model('isl_trans.h5')
 
-# Action list for predictions
+
 actions = np.array(['','I','You','Love','Hello','Namaste', 'Bye', 
                     'Thanks', 'Welcome', 'Indian', 'Good Morning','Good Afternoon', 
                     'Good night','Sorry','Please','Car','Food','Water','Today',
@@ -53,7 +78,7 @@ class SignLanguageTransformer(VideoTransformerBase):
         # Make detection
         image, results = mediapipe_detection(img, self.holistic)
 
-        # Draw styled landmarks (you can skip this if you don't want visual feedback)
+        # Draw styled landmarks
         mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
         mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
         mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
@@ -73,7 +98,7 @@ class SignLanguageTransformer(VideoTransformerBase):
             if ensemble_pred[final_pred_class] > self.threshold:
                 if len(self.sentence) == 0 or actions[final_pred_class] != self.sentence[-1]:
                     self.sentence.append(actions[final_pred_class])
-
+            
             if len(self.sentence) > 3:
                 self.sentence = self.sentence[-3:]
 
