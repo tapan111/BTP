@@ -44,21 +44,18 @@ class SignLanguageTransformer(VideoTransformerBase):
         self.sequence = []
         self.sentence = []
         self.threshold = 0.3
-        self.timer = 30
-        self.last_time = time.time()
+        self.start_time = time.time()
+        self.duration = 30  # seconds
         self.holistic = mp_holistic.Holistic(min_detection_confidence=0.3, min_tracking_confidence=0.3)
         self.ensemble_pred = np.zeros(len(actions))
         self.final_pred_class = 0
 
     def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
-        # Timer logic
-        current_time = time.time()
-        if current_time - self.last_time >= 1:
-            self.timer -= 1
-            self.last_time = current_time
-            if self.timer == 0:
-                self.timer = 30
+        elapsed = time.time() - self.start_time
+        remaining = max(0, int(self.duration - elapsed))
+        if remaining == 0:
+            self.start_time = time.time()  # reset timer
 
         # Make detections
         image, results = mediapipe_detection(img, self.holistic)
@@ -86,12 +83,12 @@ class SignLanguageTransformer(VideoTransformerBase):
             self.sentence = self.sentence[-3:]
 
         # Draw timer and sentence
-        cv2.rectangle(image, (0,0), (640, 40), (245, 117, 16), -1)
-        cv2.putText(image, ' '.join(self.sentence), (3,30), 
+        cv2.rectangle(img, (0,0), (640, 40), (245, 117, 16), -1)
+        cv2.putText(img, ' '.join(self.sentence), (3,30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(image, f"Timer: {self.timer}", (10, 70),
+        cv2.putText(img, f"Timer: {remaining}", (10, 70),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-        return image
+        return img
 
 st.title("Real-time Indian Sign Language Recognition")
 
