@@ -1,8 +1,6 @@
-streamlit==1.33.0
-streamlit-webrtc==0.45.0
-tensorflow==2.14.0
-numpy
-mediapipe==0.10.9
+streamlit
+streamlit-webrtc
+tensorflow
 opencv-python
-scikit-learn
-matplotlib
+mediapipe
+numpy
