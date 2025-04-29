@@ -1,12 +1,11 @@
 import streamlit as st
 from streamlit_webrtc import VideoTransformerBase, webrtc_streamer
-import tensorflow as tf
+import cv2
 import numpy as np
 import mediapipe as mp
-import cv2
+import tensorflow as tf
 import time
-
-# Load your models
+# Load models and actions as before
 model = tf.keras.models.load_model('isl_bilstmonly.h5')
 model1 = tf.keras.models.load_model('isl_cnnlstm.h5')
 transformer_model = tf.keras.models.load_model('isl_trans.h5')
@@ -42,20 +41,27 @@ def draw_styled_landmarks(image, results):
 class SignLanguageTransformer(VideoTransformerBase):
     def __init__(self):
         self.sequence = []
-        self.sentence = []  # List of (sign, timestamp)
+        self.sentence = []
         self.threshold = 0.3
+        self.timer = 30
+        self.last_time = time.time()
         self.holistic = mp_holistic.Holistic(min_detection_confidence=0.3, min_tracking_confidence=0.3)
         self.ensemble_pred = np.zeros(len(actions))
         self.final_pred_class = 0
 
     def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
+        # Timer logic
         current_time = time.time()
+        if current_time - self.last_time >= 1:
+            self.timer -= 1
+            self.last_time = current_time
+            if self.timer == 0:
+                self.timer = 30
 
         # Make detections
         image, results = mediapipe_detection(img, self.holistic)
         draw_styled_landmarks(image, results)
-
         # Prediction logic
         keypoints = extract_keypoints(results)
         self.sequence.append(keypoints)
@@ -63,34 +69,30 @@ class SignLanguageTransformer(VideoTransformerBase):
             lstm_pred = model.predict(np.expand_dims(self.sequence, axis=0))[0]
             cnn_lstm_pred = model1.predict(np.expand_dims(self.sequence, axis=0))[0]
             transformer_pred = transformer_model.predict(np.expand_dims(self.sequence, axis=0))[0]
-            self.ensemble_pred = (0.2 * lstm_pred + 0.2 * cnn_lstm_pred + 0.6 * transformer_pred)
+            self.ensemble_pred = (lstm_pred + cnn_lstm_pred + transformer_pred) / 3
             self.final_pred_class = np.argmax(self.ensemble_pred)
             self.sequence = []
 
-            # Add sign if above threshold
-            if self.ensemble_pred[self.final_pred_class] > self.threshold:
-                sign = actions[self.final_pred_class]
-                # Only add if not already present or if re-recognized
-                if not any(s == sign for s, _ in self.sentence):
-                    self.sentence.append((sign, current_time))
-                else:
-                    # Update timestamp if sign is recognized again
-                    self.sentence = [(s, t) if s != sign else (s, current_time) for s, t in self.sentence]
+        # Viz logic
+        if self.ensemble_pred[self.final_pred_class] > self.threshold: 
+            if len(self.sentence) > 0: 
+                if actions[self.final_pred_class] != self.sentence[-1]:
+                    self.sentence.append(actions[self.final_pred_class])
+            else:
+                self.sentence.append(actions[self.final_pred_class])
 
-        # Remove signs older than 5 seconds
-        self.sentence = [(s, t) for (s, t) in self.sentence if current_time - t < 5]
+        if len(self.sentence) > 3: 
+            self.sentence = self.sentence[-3:]
 
-        # Prepare sentence for display (last 3 signs, most recent last)
-        display_sentence = [s for (s, _) in self.sentence][-3:]
-
-        # Draw sentence
+        # Draw timer and sentence
         cv2.rectangle(image, (0,0), (640, 40), (245, 117, 16), -1)
-        cv2.putText(image, ' '.join(display_sentence), (3,30), 
+        cv2.putText(image, ' '.join(self.sentence), (3,30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(image, f"Timer: {self.timer}", (10, 70),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
         return image
 
 st.title("Real-time Indian Sign Language Recognition")
-st.write("Show your sign in front of the webcam. Each recognized sign will appear above the video for 5 seconds.")
 
 webrtc_streamer(
     key="key",
